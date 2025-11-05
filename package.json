@@ -1,0 +1,39 @@
+{
+  "name": "browserharvest",
+  "version": "1.0.0",
+  "description": "เครื่องมือดึงข้อมูลเว็บอัตโนมัติ",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.34.0"
+  },
+  "devDependencies": {
+    "electron": "^24.2.0",
+    "electron-builder": "^24.4.0"
+  },
+  "build": {
+    "appId": "com.browserharvest.app",
+    "productName": "BrowserHarvest",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}
