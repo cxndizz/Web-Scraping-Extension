@@ -1,13 +1,161 @@
-*{box-sizing:border-box}body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:12px;width:360px;color:#222}
-header h3{margin:0 0 8px 0}
-.card{border:1px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:10px;background:#fff}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-label{display:block;font-size:12px;color:#555;margin-bottom:4px}
-input,select,textarea,button{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px}
-button{cursor:pointer;background:#00b894;color:#fff;border:none}
-button:hover{filter:brightness(.95)}
-textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-pre.log{max-height:140px;overflow:auto;background:#0b1020;color:#e2f0ff;border-radius:8px;padding:8px}
-footer{font-size:12px;color:#555;text-align:right}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+  margin: 0;
+  padding: 12px;
+  width: 380px;
+  color: #222;
+  background: #f5f7fa;
+}
+
+header {
+  margin-bottom: 12px;
+}
+
+header h3 {
+  margin: 0 0 4px 0;
+  color: #00b894;
+}
+
+header .version {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+h4 {
+  margin: 0 0 10px 0;
+  color: #334155;
+  font-size: 14px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+input, select, textarea, button {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+button {
+  cursor: pointer;
+  background: #00b894;
+  color: #fff;
+  border: none;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+button:hover {
+  background: #00a383;
+}
+
+button.small {
+  padding: 2px 8px;
+  width: auto;
+  font-size: 12px;
+}
+
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+pre.log {
+  max-height: 140px;
+  overflow: auto;
+  background: #0b1020;
+  color: #e2f0ff;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  margin: 8px 0 0 0;
+}
+
+.data-options {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0;
+}
+
+.data-options label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.data-options input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+footer {
+  font-size: 12px;
+  color: #64748b;
+  padding-top: 4px;
+}
+
+footer a {
+  color: #0ea5e9;
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}
+
+.count-display {
+  margin-left: auto;
+}
+
+#recordCount {
+  font-weight: bold;
+  color: #334155;
+}
