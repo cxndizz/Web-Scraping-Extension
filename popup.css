@@ -159,3 +159,72 @@ footer a:hover {
   font-weight: bold;
   color: #334155;
 }
+
+.help-text {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* Tab-like navigation */
+.tabs {
+  display: flex;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.tab.active {
+  color: #00b894;
+  border-bottom-color: #00b894;
+}
+
+/* API specific */
+.api-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: #eef2ff;
+  color: #3b82f6;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.api-status {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.api-status.success {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.api-status.error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* New badge for API mode */
+.new-badge {
+  display: inline-block;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 5px;
+  vertical-align: middle;
+  font-weight: 500;
+}

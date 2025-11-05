@@ -1,10 +1,170 @@
 // OctoLite Scraper — content.js
-// โหมดไฮไลต์เลือก selector, ดึงข้อมูล (fields), pagination, infinite scroll, list→detail
+// โหมดไฮไลต์เลือก selector, ดึงข้อมูล (fields), pagination, infinite scroll, list→detail, และการจับ API/XHR
 
 let picking = false;
 let overlay;
 let tooltip;
 let notification;
+
+// บันทึก XHR requests
+let xhrHistory = [];
+const MAX_XHR_HISTORY = 50; // เก็บประวัติมากสุด 50 รายการ
+
+// ติดตั้ง XHR Observer
+function setupXHRObserver() {
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+    
+    // Override open method
+    XMLHttpRequest.prototype.open = function() {
+        this._method = arguments[0];
+        this._url = arguments[1];
+        return originalOpen.apply(this, arguments);
+    };
+    
+    // Override send method
+    XMLHttpRequest.prototype.send = function(body) {
+        // สร้างข้อมูลตั้งต้น
+        const xhrInfo = {
+            url: this._url,
+            method: this._method,
+            body: parseRequestBody(body),
+            headers: {},
+            timestamp: Date.now()
+        };
+        
+        // ติดตาม headers
+        if (this.setRequestHeader) {
+            const originalSetRequestHeader = this.setRequestHeader;
+            this.setRequestHeader = function(name, value) {
+                xhrInfo.headers[name] = value;
+                return originalSetRequestHeader.apply(this, arguments);
+            };
+        }
+        
+        // ติดตาม responses
+        this.addEventListener('load', function() {
+            try {
+                xhrInfo.status = this.status;
+                xhrInfo.response = parseResponse(this.responseType, this.response);
+                
+                // เก็บเฉพาะ requests ที่สำเร็จและเป็น JSON
+                if (this.status >= 200 && this.status < 300 && xhrInfo.response) {
+                    // เพิ่มลงใน history และลบรายการเก่าถ้าเกินขีดจำกัด
+                    xhrHistory.unshift(xhrInfo);
+                    if (xhrHistory.length > MAX_XHR_HISTORY) {
+                        xhrHistory.pop();
+                    }
+                }
+            } catch (e) {
+                console.error('OctoLite: Error tracking XHR response', e);
+            }
+        });
+        
+        return originalSend.apply(this, arguments);
+    };
+    
+    // ติดตาม Fetch API ด้วย
+    setupFetchObserver();
+    
+    console.log('OctoLite: XHR Observer installed');
+}
+
+// ติดตั้ง Fetch Observer
+function setupFetchObserver() {
+    const originalFetch = window.fetch;
+    
+    window.fetch = async function(resource, options = {}) {
+        const url = typeof resource === 'string' ? resource : resource.url;
+        const method = options.method || (resource.method ? resource.method : 'GET');
+        
+        // สร้างข้อมูลตั้งต้น
+        const fetchInfo = {
+            url,
+            method,
+            body: parseRequestBody(options.body),
+            headers: {},
+            timestamp: Date.now()
+        };
+        
+        // เพิ่ม headers
+        if (options.headers) {
+            if (options.headers instanceof Headers) {
+                options.headers.forEach((value, name) => {
+                    fetchInfo.headers[name] = value;
+                });
+            } else {
+                fetchInfo.headers = options.headers;
+            }
+        }
+        
+        try {
+            // เรียก fetch ดั้งเดิม
+            const response = await originalFetch.apply(this, arguments);
+            
+            // Clone response เพื่อให้อ่านได้หลายครั้ง
+            const clonedResponse = response.clone();
+            
+            try {
+                // อ่าน response body
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    const responseBody = await clonedResponse.json();
+                    fetchInfo.response = responseBody;
+                    
+                    // เก็บ response เฉพาะที่สำเร็จและมีข้อมูล JSON
+                    if (response.ok && fetchInfo.response) {
+                        xhrHistory.unshift(fetchInfo);
+                        if (xhrHistory.length > MAX_XHR_HISTORY) {
+                            xhrHistory.pop();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('OctoLite: Error parsing fetch response', e);
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('OctoLite: Error in fetch', error);
+            throw error;
+        }
+    };
+}
+
+// แปลง request body
+function parseRequestBody(body) {
+    if (!body) return null;
+    
+    try {
+        // ถ้าเป็น string และเป็น JSON-like
+        if (typeof body === 'string' && (body.trim().startsWith('{') || body.trim().startsWith('['))) {
+            return JSON.parse(body);
+        }
+        
+        // ถ้าเป็น FormData หรืออื่น ๆ
+        return body;
+    } catch (e) {
+        return body;
+    }
+}
+
+// แปลง response
+function parseResponse(type, response) {
+    if (!response) return null;
+    
+    try {
+        if (type === 'json' || !type) {
+            return typeof response === 'string' ? JSON.parse(response) : response;
+        } else if (type === 'text' && typeof response === 'string' && 
+                  (response.trim().startsWith('{') || response.trim().startsWith('['))) {
+            return JSON.parse(response);
+        }
+        return response;
+    } catch (e) {
+        return response;
+    }
+}
 
 // ช่วยเรื่องการ clean ข้อมูล
 function cleanPrice(text) {
@@ -404,6 +564,9 @@ chrome.runtime.onConnect.addListener(function(port) {
     } catch (e) {
         console.error('Error checking picker state:', e);
     }
+    
+    // ติดตั้ง XHR observer ไม่ว่า picker state จะเป็นอย่างไร
+    setupXHRObserver();
 })();
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -486,6 +649,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
             if (msg.type === 'PING_CONTENT') {
                 sendResponse({ ok: true, title: document.title, url: location.href });
+                return;
+            }
+            
+            // API โหมด: ดึง XHR requests ล่าสุด
+            if (msg.type === 'INSPECT_XHR') {
+                // ส่งข้อมูล XHR ล่าสุดกลับไป
+                sendResponse({ 
+                    ok: true, 
+                    requests: xhrHistory.slice(0, 10) // ส่ง 10 รายการล่าสุด
+                });
                 return;
             }
         } catch (e) {

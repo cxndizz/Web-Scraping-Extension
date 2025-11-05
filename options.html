@@ -120,6 +120,22 @@
       gap: 8px;
     }
     
+    .preset-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      background: #f3f4f6;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 8px;
+      color: #64748b;
+    }
+    
+    .preset-badge.api {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+    
     .preset-actions button {
       padding: 4px 8px;
       width: auto;
@@ -141,6 +157,34 @@
     .footer a:hover {
       text-decoration: underline;
     }
+    
+    .tabs {
+      display: flex;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .tab {
+      padding: 8px 16px;
+      cursor: pointer;
+      color: #64748b;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .tab.active {
+      color: #00b894;
+      border-bottom: 2px solid #00b894;
+      margin-bottom: -1px;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -148,11 +192,101 @@
   <p>บันทึก preset งาน (ต่อโดเมน) ไว้เรียกใช้ภายหลัง และตั้งค่าทั่วไปของ extension</p>
 
   <div class="card">
-    <label>Domain (เช่น example.com)</label>
-    <input id="domain" placeholder="example.com" />
+    <div class="tabs">
+      <div class="tab active" data-tab="dom">DOM Scraping</div>
+      <div class="tab" data-tab="api">API Scraping</div>
+    </div>
+    
+    <div class="tab-content active" data-tab-content="dom">
+      <label>Domain (เช่น example.com)</label>
+      <input id="domain" placeholder="example.com" />
 
-    <label>Job JSON</label>
-    <textarea id="job" rows="12" placeholder="{ &quot;mode&quot;: &quot;simple&quot;, ... }"></textarea>
+      <label>Job JSON</label>
+      <textarea id="job" rows="12" placeholder="{ &quot;mode&quot;: &quot;simple&quot;, ... }"></textarea>
+    </div>
+    
+    <div class="tab-content" data-tab-content="api">
+      <label>Domain (เช่น api.example.com)</label>
+      <input id="apiDomain" placeholder="api.example.com" />
+
+      <label>Endpoint URL</label>
+      <input id="apiUrl" placeholder="https://api.example.com/products" />
+      
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <div style="flex: 1;">
+          <label>Method</label>
+          <select id="apiMethod">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+          </select>
+        </div>
+        <div style="flex: 2;">
+          <label>Content-Type</label>
+          <select id="apiContentType">
+            <option value="application/json">application/json</option>
+            <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+          </select>
+        </div>
+      </div>
+      
+      <label>Headers (JSON)</label>
+      <textarea id="apiHeaders" rows="3">{
+  "Accept": "application/json"
+}</textarea>
+
+      <label>Request Body (JSON/Form)</label>
+      <textarea id="apiBody" rows="3">{
+  "limit": 20
+}</textarea>
+
+      <label>Data Path</label>
+      <input id="apiDataPath" placeholder="data.items" />
+      
+      <label>Field Mapping (JSON)</label>
+      <textarea id="apiMapping" rows="4">{
+  "title": "name",
+  "price": "price.amount"
+}</textarea>
+
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <div style="flex: 1;">
+          <label>Pagination Type</label>
+          <select id="apiPagType">
+            <option value="page">Page Number</option>
+            <option value="offset">Offset</option>
+            <option value="cursor">Cursor</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+        <div style="flex: 1;">
+          <label>Parameter Name</label>
+          <input id="apiPagParam" placeholder="page" value="page" />
+        </div>
+      </div>
+      
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <div style="flex: 1;">
+          <label>Start Value</label>
+          <input id="apiPagStart" type="text" value="1" />
+        </div>
+        <div style="flex: 1;">
+          <label>Increment/Step</label>
+          <input id="apiPagIncrement" type="text" value="1" />
+        </div>
+        <div style="flex: 1;">
+          <label>Max Pages</label>
+          <input id="apiMaxPages" type="number" value="5" />
+        </div>
+      </div>
+      
+      <div id="apiCursorDiv" style="display: none;">
+        <label>Cursor Response Path</label>
+        <input id="apiCursorPath" placeholder="metadata.next_cursor" />
+      </div>
+      
+      <label>Throttle (ms)</label>
+      <input id="apiThrottleMs" type="number" value="1000" />
+    </div>
 
     <div class="row">
       <button id="save">บันทึก Preset</button>
@@ -189,6 +323,11 @@
       <input type="checkbox" id="showNotification" checked />
       แสดงการแจ้งเตือนเมื่อเก็บข้อมูลเสร็จ
     </label>
+    
+    <label>
+      <input type="checkbox" id="captureXhr" checked />
+      จับ XHR/API requests อัตโนมัติ
+    </label>
 
     <div class="row">
       <button id="saveSettings">บันทึกการตั้งค่า</button>
@@ -197,7 +336,7 @@
   </div>
 
   <div class="footer">
-    OctoLite Scraper v1.0.1 &copy; 2025 | <a href="https://github.com/example/octolite-scraper" target="_blank">GitHub</a>
+    OctoLite Scraper v1.1.0 &copy; 2025 | <a href="https://github.com/example/octolite-scraper" target="_blank">GitHub</a>
   </div>
 
   <script src="options.js"></script>

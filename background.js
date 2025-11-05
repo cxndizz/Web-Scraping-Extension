@@ -1,5 +1,6 @@
 // OctoLite Scraper — background.js
 // จัดเก็บผลลัพธ์, ประสานงาน message, และ helper สำหรับ export
+// เพิ่มเติม: จัดการกับการเรียก API โดยตรง
 
 const RESULT_KEY = "octolite_results";
 const JOB_KEY = "octolite_job"; // เก็บ last job config
@@ -17,6 +18,240 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // ช่วยให้ popup ที่เปิดใหม่รู้ว่ากำลังอยู่ใน selector mode หรือไม่
 let isPickerActive = false;
+
+// ฟังก์ชันช่วยดึงข้อมูลจาก object โดย path (รองรับ nested path ด้วยจุด ".")
+function getNestedValue(obj, path) {
+    if (!path) return obj;
+    const keys = path.split('.');
+    return keys.reduce((o, key) => (o && o[key] !== undefined) ? o[key] : null, obj);
+}
+
+// ฟังก์ชันช่วยสำหรับการ map ข้อมูลจาก API ไปยัง schema ที่ต้องการ
+function mapApiData(item, mapping) {
+    if (!item || !mapping) return item;
+    
+    const result = {};
+    for (const [resultField, apiField] of Object.entries(mapping)) {
+        result[resultField] = getNestedValue(item, apiField);
+    }
+    
+    return result;
+}
+
+// ฟังก์ชันสำหรับเรียก API
+async function callApi(config) {
+    const {
+        url,
+        method = 'GET',
+        contentType = 'application/json',
+        headers = {},
+        body,
+        throttleMs = 0
+    } = config;
+    
+    if (!url) {
+        throw new Error('URL is required');
+    }
+    
+    // เตรียม headers
+    const requestHeaders = { ...headers };
+    if (contentType && !requestHeaders['Content-Type']) {
+        requestHeaders['Content-Type'] = contentType;
+    }
+    
+    // เตรียม body
+    let requestBody = body;
+    if (body && contentType === 'application/json' && typeof body === 'string') {
+        try {
+            // แปลง body string เป็น object ถ้าจำเป็น
+            const bodyObj = JSON.parse(body);
+            requestBody = bodyObj;
+        } catch (e) {
+            console.error('Error parsing JSON body:', e);
+        }
+    }
+    
+    // Throttle ถ้ากำหนด
+    if (throttleMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, throttleMs));
+    }
+    
+    // เตรียม request options
+    const options = {
+        method,
+        headers: requestHeaders
+    };
+    
+    // เพิ่ม body สำหรับ POST/PUT
+    if (method !== 'GET' && method !== 'HEAD' && requestBody) {
+        if (contentType === 'application/json') {
+            if (typeof requestBody !== 'string') {
+                options.body = JSON.stringify(requestBody);
+            } else {
+                options.body = requestBody;
+            }
+        } else if (contentType === 'application/x-www-form-urlencoded') {
+            if (typeof requestBody === 'string') {
+                options.body = requestBody;
+            } else {
+                // แปลง object เป็น URL encoded
+                const params = new URLSearchParams();
+                for (const key in requestBody) {
+                    params.append(key, requestBody[key]);
+                }
+                options.body = params.toString();
+            }
+        } else {
+            // สำหรับ content type อื่น ๆ
+            options.body = requestBody;
+        }
+    }
+    
+    // เรียก API
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+    
+    // แปลงการตอบกลับตาม content type
+    const responseContentType = response.headers.get('Content-Type') || '';
+    if (responseContentType.includes('application/json')) {
+        return await response.json();
+    } else {
+        return await response.text();
+    }
+}
+
+// ฟังก์ชันหลักสำหรับ API scraping
+async function runApiScrape(config) {
+    const {
+        url,
+        method = 'GET',
+        contentType = 'application/json',
+        headers = {},
+        body,
+        dataPath,
+        mapping = {},
+        pagination = {
+            type: 'page',
+            param: 'page',
+            start: '1',
+            increment: '1',
+            maxPages: 5,
+            cursorPath: ''
+        },
+        throttleMs = 1000
+    } = config;
+    
+    let allResults = [];
+    let currentPage = pagination.start;
+    let nextCursor = null;
+    
+    try {
+        for (let i = 0; i < pagination.maxPages; i++) {
+            // สร้าง request config
+            const apiConfig = {
+                url: url,
+                method,
+                contentType,
+                headers,
+                body: body,
+                throttleMs: i > 0 ? throttleMs : 0 // ไม่ throttle สำหรับ request แรก
+            };
+            
+            // แก้ไข URL หรือ body ตามประเภทการแบ่งหน้า
+            if (pagination.type !== 'none') {
+                // แปลง body string เป็น object ถ้าจำเป็น
+                let bodyObj = {};
+                if (typeof body === 'string') {
+                    try {
+                        bodyObj = JSON.parse(body);
+                    } catch (e) {
+                        console.error('Error parsing JSON body:', e);
+                        bodyObj = {};
+                    }
+                } else if (body && typeof body === 'object') {
+                    bodyObj = { ...body };
+                }
+                
+                if (pagination.type === 'cursor' && i > 0) {
+                    // ใช้ cursor จาก response ก่อนหน้า
+                    if (!nextCursor && pagination.type === 'cursor') {
+                        // ไม่มี cursor ถัดไป ออกจากลูป
+                        break;
+                    }
+                    
+                    if (method === 'GET') {
+                        // เพิ่ม cursor ใน URL params
+                        const urlObj = new URL(url);
+                        urlObj.searchParams.set(pagination.param, nextCursor);
+                        apiConfig.url = urlObj.toString();
+                    } else {
+                        // เพิ่ม cursor ใน body
+                        bodyObj[pagination.param] = nextCursor;
+                        apiConfig.body = JSON.stringify(bodyObj);
+                    }
+                } else {
+                    // แบ่งหน้าแบบ page number หรือ offset
+                    if (method === 'GET') {
+                        // เพิ่ม page param ใน URL
+                        const urlObj = new URL(url);
+                        urlObj.searchParams.set(pagination.param, currentPage);
+                        apiConfig.url = urlObj.toString();
+                    } else {
+                        // เพิ่ม page param ใน body
+                        bodyObj[pagination.param] = currentPage;
+                        apiConfig.body = JSON.stringify(bodyObj);
+                    }
+                    
+                    // เพิ่มค่าตาม increment (สำหรับการแบ่งหน้าแบบตัวเลข)
+                    if (pagination.type === 'page' || pagination.type === 'offset') {
+                        const increment = Number(pagination.increment) || 1;
+                        currentPage = String(Number(currentPage) + increment);
+                    }
+                }
+            }
+            
+            // เรียก API
+            const response = await callApi(apiConfig);
+            
+            // แยกข้อมูลตาม dataPath
+            let items = [];
+            if (dataPath) {
+                items = getNestedValue(response, dataPath) || [];
+            } else {
+                // ถ้าไม่มี dataPath แต่ response เป็น array ให้ใช้ response เลย
+                items = Array.isArray(response) ? response : [response];
+            }
+            
+            // ถ้าไม่มีข้อมูล หรือเป็น array ว่างเปล่า ให้ออกจากลูป
+            if (!items || (Array.isArray(items) && items.length === 0)) {
+                break;
+            }
+            
+            // แปลงข้อมูลตาม mapping
+            const mappedItems = Array.isArray(items)
+                ? items.map(item => mapApiData(item, mapping))
+                : [mapApiData(items, mapping)];
+            
+            // เพิ่มข้อมูลลงใน results
+            allResults.push(...mappedItems);
+            
+            // หา cursor ถัดไปถ้ามี
+            if (pagination.type === 'cursor' && pagination.cursorPath) {
+                nextCursor = getNestedValue(response, pagination.cursorPath);
+                // ถ้าไม่พบ cursor ถัดไป ให้ออกจากลูป
+                if (!nextCursor) {
+                    break;
+                }
+            }
+        }
+        
+        return { results: allResults };
+    } catch (error) {
+        throw new Error(`API scraping failed: ${error.message}`);
+    }
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
@@ -127,6 +362,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     sendResponse({ ok: true });
                 } else {
                     sendResponse({ ok: false, error: "missing url/filename" });
+                }
+                return;
+            }
+            
+            // API scraping: รับคำสั่งจาก popup และส่งต่อไปยัง background worker
+            if (msg.type === "RUN_API_SCRAPE") {
+                try {
+                    // บันทึก source domain
+                    const sourceUrl = msg.payload.url;
+                    if (sourceUrl) {
+                        const domain = new URL(sourceUrl).hostname;
+                        await chrome.storage.local.set({ [SOURCE_KEY]: sourceUrl });
+                    }
+                    
+                    // เรียก API และรับผลลัพธ์
+                    const { results } = await runApiScrape(msg.payload);
+                    
+                    // เพิ่ม source และ scraped_at
+                    const domain = sourceUrl ? new URL(sourceUrl).hostname : "";
+                    const now = new Date().toISOString();
+                    
+                    for (const row of results) {
+                        if (!row.source && domain) row.source = domain;
+                        if (!row.scraped_at) row.scraped_at = now;
+                    }
+                    
+                    // บันทึกผลลัพธ์
+                    const cur = (await chrome.storage.local.get(RESULT_KEY))[RESULT_KEY] || [];
+                    const next = cur.concat(results);
+                    await chrome.storage.local.set({ [RESULT_KEY]: next });
+                    
+                    sendResponse({ 
+                        ok: true, 
+                        added: results.length, 
+                        total: next.length
+                    });
+                } catch (error) {
+                    sendResponse({ 
+                        ok: false, 
+                        error: "API scraping failed", 
+                        details: error.message
+                    });
                 }
                 return;
             }
