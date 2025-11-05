@@ -6,6 +6,9 @@ const simpleSec = $('#simpleSec');
 const ldSec = $('#ldSec');
 const recordCountEl = $('#recordCount');
 
+// สร้าง connection เพื่อตรวจจับการปิด popup
+const popupPort = chrome.runtime.connect({ name: "octolite-popup" });
+
 function log(m) { 
     logEl.textContent += m + '\n'; 
     logEl.scrollTop = logEl.scrollHeight; // Auto-scroll
@@ -31,23 +34,44 @@ $('#infEnabled').addEventListener('change', (e) => {
 
 $('#pick').addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // แจ้ง background ว่าเริ่มโหมด picker
+    await chrome.runtime.sendMessage({ type: 'START_PICK' });
+    
+    // แจ้ง content script ให้เริ่มทำงาน
     await chrome.tabs.sendMessage(tab.id, { type: 'START_PICK' });
-    log('Pick mode: ชี้องค์ประกอบแล้วคลิก เพื่อคัดลอก selector → ฟิลด์แรกจะถูกอัปเดตอัตโนมัติ');
-    const handler = (msg) => {
-        if (msg.type === 'SELECTOR_PICKED') {
+    
+    log('Pick mode: เปิดโหมดเลือก selector แล้ว หากหน้าต่างนี้ปิดให้เลือกต่อได้เลย กด ESC เพื่อยกเลิก');
+    
+    // เพิ่มคำแนะนำเพื่อให้ผู้ใช้รู้ว่าทำอะไรต่อ
+    log('🔔 หลังเลือกเสร็จ กรุณาเปิด popup นี้อีกครั้งเพื่อนำ selector มาใช้');
+});
+
+// ตรวจสอบและโหลด selector ที่บันทึกไว้เมื่อเปิด popup
+async function checkForSavedSelector() {
+    try {
+        const resp = await chrome.runtime.sendMessage({ type: 'GET_TEMP_SELECTOR' });
+        if (resp && resp.selector) {
+            log('พบ Selector ที่เลือกไว้: ' + resp.selector);
+            
             try {
                 const fields = JSON.parse($('#fields').value || '[]');
-                if (fields.length) fields[0].selector = msg.selector;
-                $('#fields').value = JSON.stringify(fields, null, 2);
-                log('Picked: ' + msg.selector);
+                if (fields.length) {
+                    fields[0].selector = resp.selector;
+                    $('#fields').value = JSON.stringify(fields, null, 2);
+                    log('อัปเดต selector ในฟิลด์แรกแล้ว');
+                }
             } catch (e) {
-                log('Invalid JSON in Fields');
+                log('Error: Invalid JSON in Fields');
             }
-            chrome.runtime.onMessage.removeListener(handler);
+            
+            // ล้าง selector ชั่วคราวหลังจากใช้แล้ว
+            chrome.runtime.sendMessage({ type: 'CLEAR_TEMP_SELECTOR' });
         }
-    };
-    chrome.runtime.onMessage.addListener(handler);
-});
+    } catch (e) {
+        console.error('Error checking for saved selector:', e);
+    }
+}
 
 $('#addField').addEventListener('click', () => {
     try {
@@ -77,6 +101,12 @@ $('#inspect').addEventListener('click', async () => {
     const resultsResp = await chrome.runtime.sendMessage({ type: 'GET_RESULTS' });
     if (resultsResp?.ok) {
         updateRecordCount(resultsResp.results.length);
+    }
+    
+    // เช็คสถานะ picker ด้วย
+    const pickerResp = await chrome.runtime.sendMessage({ type: 'IS_PICKER_ACTIVE' });
+    if (pickerResp?.active) {
+        log('⚠️ Selector picker ยังทำงานอยู่ — คลิกที่องค์ประกอบหรือกด ESC เพื่อจบการทำงาน');
     }
 });
 
@@ -294,7 +324,7 @@ function toCSV(rows) {
 }
 
 // โหลด job เดิมกลับเข้าฟอร์ม (optional)
-(async function initFromJob(){
+async function initFromJob(){
     const resp = await chrome.runtime.sendMessage({ type: 'GET_JOB' });
     const job = resp?.job;
     if (!job) return;
@@ -330,4 +360,20 @@ function toCSV(rows) {
     if (resultsResp?.ok) {
         updateRecordCount(resultsResp.results.length);
     }
-})();
+}
+
+// เมื่อโหลดหน้า
+document.addEventListener('DOMContentLoaded', async () => {
+    // โหลด job เดิม
+    await initFromJob();
+    
+    // ตรวจสอบ selector ที่บันทึกไว้
+    await checkForSavedSelector();
+    
+    // ตรวจสอบสถานะ picker
+    const pickerResp = await chrome.runtime.sendMessage({ type: 'IS_PICKER_ACTIVE' });
+    if (pickerResp?.active) {
+        log('⚠️ Selector picker กำลังทำงานอยู่ในแท็บนี้');
+        log('คลิกที่องค์ประกอบหรือกด ESC เพื่อจบการทำงาน');
+    }
+});

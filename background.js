@@ -4,10 +4,19 @@
 const RESULT_KEY = "octolite_results";
 const JOB_KEY = "octolite_job"; // เก็บ last job config
 const SOURCE_KEY = "octolite_source"; // เก็บข้อมูล source URL
+const TEMP_SELECTOR_KEY = "octolite_temp_selector"; // เก็บ selector ชั่วคราว
 
 chrome.runtime.onInstalled.addListener(() => {
-    chrome.storage.local.set({ [RESULT_KEY]: [], [JOB_KEY]: null, [SOURCE_KEY]: "" });
+    chrome.storage.local.set({ 
+        [RESULT_KEY]: [], 
+        [JOB_KEY]: null, 
+        [SOURCE_KEY]: "",
+        [TEMP_SELECTOR_KEY]: ""
+    });
 });
+
+// ช่วยให้ popup ที่เปิดใหม่รู้ว่ากำลังอยู่ใน selector mode หรือไม่
+let isPickerActive = false;
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
@@ -61,6 +70,55 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 return;
             }
 
+            if (msg.type === "START_PICK") {
+                isPickerActive = true;
+                sendResponse({ ok: true });
+                return;
+            }
+
+            if (msg.type === "STOP_PICK") {
+                isPickerActive = false;
+                sendResponse({ ok: true });
+                return;
+            }
+
+            if (msg.type === "IS_PICKER_ACTIVE") {
+                sendResponse({ active: isPickerActive });
+                return;
+            }
+
+            if (msg.type === "SELECTOR_PICKED") {
+                // เก็บ selector ที่เลือกไว้ใน storage
+                await chrome.storage.local.set({ [TEMP_SELECTOR_KEY]: msg.selector || "" });
+                
+                // อัปเดต flag
+                isPickerActive = false;
+                
+                // แจ้งเตือนด้วย chrome.notifications ถ้าต้องการ
+                chrome.notifications.create({
+                    type: 'basic',
+                    iconUrl: 'icons/icon48.png',
+                    title: 'OctoLite Scraper',
+                    message: 'Selector บันทึกแล้ว: ' + msg.selector,
+                    priority: 2
+                });
+                
+                sendResponse({ ok: true });
+                return;
+            }
+
+            if (msg.type === "GET_TEMP_SELECTOR") {
+                const selector = (await chrome.storage.local.get(TEMP_SELECTOR_KEY))[TEMP_SELECTOR_KEY] || "";
+                sendResponse({ selector });
+                return;
+            }
+
+            if (msg.type === "CLEAR_TEMP_SELECTOR") {
+                await chrome.storage.local.set({ [TEMP_SELECTOR_KEY]: "" });
+                sendResponse({ ok: true });
+                return;
+            }
+
             if (msg.type === "DOWNLOAD_BLOB") {
                 // ใช้ chrome.downloads สำหรับไฟล์ CSV/JSON/TXT/SQL
                 const { url, filename } = msg.payload || {};
@@ -78,4 +136,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
     })();
     return true; // keep channel open for async
+});
+
+// เพิ่ม permissions ที่จำเป็น
+chrome.permissions.contains({
+    permissions: ['notifications']
+}, (result) => {
+    if (!result) {
+        chrome.permissions.request({
+            permissions: ['notifications']
+        });
+    }
 });

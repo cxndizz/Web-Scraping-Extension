@@ -4,6 +4,7 @@
 let picking = false;
 let overlay;
 let tooltip;
+let notification;
 
 // ช่วยเรื่องการ clean ข้อมูล
 function cleanPrice(text) {
@@ -52,6 +53,51 @@ function ensureTooltip() {
     document.documentElement.appendChild(tooltip);
 }
 
+function ensureNotification() {
+    if (notification) return;
+    notification = document.createElement('div');
+    notification.id = 'octolite-notification';
+    Object.assign(notification.style, {
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        padding: '10px 16px',
+        background: '#00b894',
+        color: '#fff',
+        fontSize: '14px',
+        borderRadius: '8px',
+        zIndex: 2147483647,
+        boxShadow: '0 3px 10px rgba(0,0,0,0.15)',
+        transition: 'opacity 0.3s, transform 0.3s',
+        opacity: '0',
+        transform: 'translateY(-10px)',
+        display: 'none'
+    });
+    document.documentElement.appendChild(notification);
+}
+
+function showNotification(message, duration = 3000) {
+    ensureNotification();
+    notification.textContent = message;
+    notification.style.display = 'block';
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateY(0)';
+    }, 10);
+    
+    // Animate out and hide after duration
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(-10px)';
+        
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 300);
+    }, duration);
+}
+
 function updateOverlay(target) {
     const r = target.getBoundingClientRect();
     Object.assign(overlay.style, {
@@ -78,6 +124,9 @@ function stopPicking() {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKey, true);
+    
+    // แจ้ง background ว่าปิด picker mode แล้ว
+    chrome.runtime.sendMessage({ type: "STOP_PICK" });
 }
 
 function cssPath(el) {
@@ -121,12 +170,18 @@ function onClick(e) {
     e.preventDefault(); e.stopPropagation();
     const sel = cssPath(e.target);
     stopPicking();
+    
+    // ส่ง selector ไปยัง background
     chrome.runtime.sendMessage({ type: "SELECTOR_PICKED", selector: sel });
+    
+    // แสดงแจ้งเตือนบนหน้าเว็บว่าได้เลือก selector แล้ว
+    showNotification(`Selector ถูกบันทึกแล้ว: ${sel}\nเปิด OctoLite Popup อีกครั้งเพื่อใช้งาน`, 5000);
 }
 
 function onKey(e) {
     if (e.key === 'Escape') {
         stopPicking();
+        showNotification('ยกเลิกการเลือก Selector แล้ว', 2000);
     }
 }
 
@@ -320,6 +375,37 @@ async function runListDetail({ listLinkSel, detailFields, fields = [], limit = 5
     return data;
 }
 
+// เช็คว่า popup เปิดอยู่หรือปิดแล้ว
+chrome.runtime.onConnect.addListener(function(port) {
+    if (port.name === "octolite-popup") {
+        port.onDisconnect.addListener(function() {
+            // Popup ปิดไปแล้ว แต่ถ้ายังอยู่ในโหมดเลือก selector ให้ยังทำงานต่อได้
+            console.log("Popup closed but selector picker might still be active");
+        });
+    }
+});
+
+// เช็ค picker state เมื่อโหลดหน้า
+(async function checkPickerState() {
+    try {
+        const resp = await chrome.runtime.sendMessage({ type: "IS_PICKER_ACTIVE" });
+        if (resp && resp.active) {
+            // หาก picker ยังทำงานอยู่ตอนโหลดหน้า ให้เริ่มทำงานต่อ
+            picking = true;
+            ensureOverlay();
+            ensureTooltip();
+            document.addEventListener('mousemove', onMove, true);
+            document.addEventListener('click', onClick, true);
+            document.addEventListener('keydown', onKey, true);
+            
+            // แจ้งเตือนผู้ใช้
+            showNotification('โหมดเลือก Selector กำลังทำงาน คลิกที่องค์ประกอบเพื่อเลือก', 5000);
+        }
+    } catch (e) {
+        console.error('Error checking picker state:', e);
+    }
+})();
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
         try {
@@ -330,6 +416,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 document.addEventListener('mousemove', onMove, true);
                 document.addEventListener('click', onClick, true);
                 document.addEventListener('keydown', onKey, true);
+                
+                // แสดงแจ้งเตือนว่าโหมด picker ทำงานแล้ว
+                showNotification('โหมดเลือก Selector เปิดใช้งานแล้ว คลิกที่องค์ประกอบเพื่อเลือก หรือกด ESC เพื่อยกเลิก', 5000);
+                
                 sendResponse({ ok: true });
                 return;
             }
