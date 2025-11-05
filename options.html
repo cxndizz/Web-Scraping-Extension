@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>OctoLite Options</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px;max-width:720px}
+    textarea,input,button{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px}
+    .row{display:flex;gap:8px}
+  </style>
+</head>
+<body>
+  <h2>OctoLite Options</h2>
+  <p>บันทึก preset งาน (ต่อโดเมน) ไว้เรียกใช้ภายหลัง</p>
+
+  <label>Domain (เช่น example.com)</label>
+  <input id="domain" placeholder="example.com" />
+
+  <label>Job JSON</label>
+  <textarea id="job" rows="12" placeholder="{ \"mode\": \"simple\", ... }"></textarea>
+
+  <div class="row">
+    <button id="save">Save Preset</button>
+    <button id="load">Load Preset</button>
+    <button id="clear">Clear Preset</button>
+  </div>
+
+  <pre id="msg"></pre>
+
+  <script src="options.js"></script>
+</body>
+</html>

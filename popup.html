@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>OctoLite Scraper</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h3>OctoLite Scraper</h3>
+  </header>
+
+  <section class="card">
+    <div class="row">
+      <button id="pick">เลือก Selector (ชี้แล้วคลิก)</button>
+      <button id="inspect">สถานะหน้า</button>
+    </div>
+    <label>โหมดทำงาน</label>
+    <select id="mode">
+      <option value="simple">Simple (ต่อหน้า/แบ่งหน้า)</option>
+      <option value="listDetail">List → Detail</option>
+    </select>
+  </section>
+
+  <section class="card">
+    <h4>Fields (JSON)</h4>
+    <textarea id="fields" rows="8">[
+  {"name":"title","selector":".item .title","attr":"text"},
+  {"name":"link","selector":".item a","attr":"href"},
+  {"name":"image","selector":".item img","attr":"src"}
+]</textarea>
+  </section>
+
+  <section class="card" id="simpleSec">
+    <h4>Pagination</h4>
+    <div class="grid2">
+      <div>
+        <label>Next button selector</label>
+        <input id="nextSel" placeholder=".pagination .next" />
+      </div>
+      <div>
+        <label>Max pages</label>
+        <input id="maxPages" type="number" min="1" value="1" />
+      </div>
+    </div>
+    <div class="grid3">
+      <div>
+        <label>Pause (ms)</label>
+        <input id="pauseMs" type="number" value="1200" />
+      </div>
+      <div>
+        <label>Throttle (ms)</label>
+        <input id="throttleMs" type="number" value="0" />
+      </div>
+      <div>
+        <label>Infinite scroll</label>
+        <input id="infEnabled" type="checkbox" />
+      </div>
+    </div>
+    <div class="grid3" id="infCfg" style="display:none">
+      <div>
+        <label>Scroll step</label>
+        <input id="infStep" type="number" value="900" />
+      </div>
+      <div>
+        <label>Pause (ms)</label>
+        <input id="infPause" type="number" value="800" />
+      </div>
+      <div>
+        <label>Max steps</label>
+        <input id="infMax" type="number" value="25" />
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="ldSec" style="display:none">
+    <h4>List → Detail</h4>
+    <div>
+      <label>List Link Selector</label>
+      <input id="listLinkSel" placeholder=".item a.title" />
+    </div>
+    <label>Detail Fields (JSON)</label>
+    <textarea id="detailFields" rows="6">[
+  {"name":"detail_title","selector":"h1","attr":"text"},
+  {"name":"detail_price","selector":".price","attr":"text"}
+]</textarea>
+    <div class="grid3">
+      <div>
+        <label>Limit items</label>
+        <input id="ldLimit" type="number" value="30" />
+      </div>
+      <div>
+        <label>Back mode</label>
+        <select id="ldBack">
+          <option value="history">history.back()</option>
+        </select>
+      </div>
+      <div>
+        <label>Pause (ms)</label>
+        <input id="ldPause" type="number" value="1200" />
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <button id="run">Run</button>
+      <button id="clear">Clear</button>
+      <button id="exportCsv">Export CSV</button>
+      <button id="exportJson">Export JSON</button>
+    </div>
+    <pre id="log" class="log"></pre>
+  </section>
+
+  <footer>
+    <a href="options.html" target="_blank">Options</a>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
